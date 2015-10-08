@@ -1,3 +1,3 @@
 # ScriptEnvironment
-Let'suse C# as a script language.  
+Let's use C# as a script language.  
 
