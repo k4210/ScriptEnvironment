@@ -27,6 +27,18 @@ namespace ScriptExecutor
             }
         }
 
+        public static void LogError(string msg)
+        {
+            if (bUsingConsole)
+            {
+                Console.Error.WriteLine(msg);
+            }
+            else
+            {
+                //MessageBox.Show(msg, "SctripExecutor", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
         public static void WaitForInput()
         {
             if (bUsingConsole)
@@ -68,7 +80,79 @@ namespace ScriptExecutor
             return 9;
         }
 
+        private static bool ExecuteOneLine(string code, string[] args)
+        {
+            FillSource(ref code);
+
+            CompilerParameters compiler_parameters = new CompilerParameters();
+            compiler_parameters.GenerateExecutable = true;
+            compiler_parameters.GenerateInMemory = true;
+            compiler_parameters.TreatWarningsAsErrors = true;
+            compiler_parameters.CompilerOptions = "/nowarn:1633"; // unrecognized pragmas
+            compiler_parameters.ReferencedAssemblies.Add("system.dll");
+            compiler_parameters.ReferencedAssemblies.Add("system.data.dll");
+            compiler_parameters.ReferencedAssemblies.Add("system.windows.forms.dll");
+
+            CSharpCodeProvider provider = new CSharpCodeProvider();
+            CompilerResults results = provider.CompileAssemblyFromSource(compiler_parameters, code);
+            if (results.Errors.HasErrors)
+            {
+                StringBuilder error_msg = new StringBuilder();
+                foreach (CompilerError err in results.Errors)
+                    error_msg.AppendFormat("{0} at column {1} \n", err.ErrorText, err.Column);
+                LogError(error_msg.ToString());
+                return false;
+            }
+
+            MethodInfo method = results.CompiledAssembly.EntryPoint;
+            if (null == method)
+            {
+                LogError("null == method");
+                return false;
+            }
+            try
+            {
+                string[] str_parameters = new string[args.Length - 1];
+                Array.Copy(args, 1, str_parameters, 0, args.Length - 1);
+                object[] parameters = new object[1] { str_parameters };
+                method.Invoke(null, parameters);
+            }
+            catch (TargetInvocationException ex)
+            {
+                LogError("Script error: " + ex.InnerException.Message);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                LogError("Executor error: " + ex.Message);
+                return false;
+            }
+            return true;
+        }
+
         static void Main(string[] args)
+        {
+            String s;
+            String whole_script = "";
+            do
+            {
+                s = Console.ReadLine();
+                if (s.EndsWith(";"))
+                {
+                    whole_script += s + "\n";
+                }
+                else
+                {
+                    string whole_line = "Console.Write(\">> \"); Console.WriteLine(" + s + ");";
+                    whole_script += whole_line + "\n";
+                    ExecuteOneLine(whole_script, args);
+                    whole_script = "";
+                    Console.WriteLine();
+                }
+            } while (!String.IsNullOrEmpty(s));
+        }
+
+        static void OldMain(string[] args)
         {
             if (args.Length == 0) HandleError("Please specify a C# script file");
             string path = args[0];
